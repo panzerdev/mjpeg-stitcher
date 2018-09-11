@@ -1,7 +1,6 @@
 module github.com/panzerdev/mjpeg-stitcher
 
 require (
-	github.com/Sirupsen/logrus v1.0.6
 	github.com/gobuffalo/packr v1.13.5
 	github.com/mattn/go-mjpeg v0.0.0-20180621123927-a9cedbfd1cd8
 	github.com/sirupsen/logrus v1.0.6

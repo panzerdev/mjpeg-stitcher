@@ -3,9 +3,9 @@ package main
 import (
 	"bytes"
 	"fmt"
-	log "github.com/Sirupsen/logrus"
 	"github.com/gobuffalo/packr"
 	"github.com/mattn/go-mjpeg"
+	log "github.com/sirupsen/logrus"
 	flag "github.com/spf13/pflag"
 	"golang.org/x/image/colornames"
 	"golang.org/x/image/draw"
