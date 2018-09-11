@@ -8,7 +8,7 @@ This service is taking 2 to n streams with the same image sizes and combines all
 By clicking on the thubnails the stream can be switched.
 
 # Building
-Go _1.11_ is the minimum version due to the use of Modules. This repository can be checked out anywhere outside the `GOPATH` and build with `go build`.
+Go _1.11_ is the minimum version due to the use of Modules. This repository can be checked out anywhere outside the `GOPATH` and build with `packr build`. [Packr](https://github.com/gobuffalo/packr) must be installed due to the html template being packed into the compiled binary. 
 
 For the Raspberry Pi 2 or 3(b+) `env GOOS=linux GOARCH=arm GOARM=7 packr build -o mjpeg`
 
