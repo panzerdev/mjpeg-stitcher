@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"github.com/gobuffalo/packr"
 	"github.com/mattn/go-mjpeg"
 	log "github.com/sirupsen/logrus"
 	flag "github.com/spf13/pflag"
@@ -13,6 +12,7 @@ import (
 	"image"
 	"image/jpeg"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"sync"
@@ -25,11 +25,8 @@ var (
 	logDebug  = flag.Bool("debug", false, "Enable Debug log level")
 	port      = flag.String("port", "8888", "Port for http server")
 	urls      = flag.StringArray("url", []string{}, "List of urls to get mjpeg streams from")
-)
 
-const (
-	boxFolder    = "./html"
-	htmlTemplate = "index_template.html"
+	filename = "html/index_template.html"
 )
 
 type ProcessedImages struct {
@@ -83,9 +80,6 @@ func main() {
 
 	sizes := NewImageSizes(*srcWidth, *srcHeight, len(*urls))
 
-	// html template folder
-	tmpBox := packr.NewBox(boxFolder)
-
 	// init streams
 	var streams []*mjpeg.Stream
 	for range *urls {
@@ -93,7 +87,7 @@ func main() {
 	}
 
 	buf := bytes.Buffer{}
-	err := WriteHtml(&tmpBox, &buf, sizes)
+	err := WriteHtml(filename, &buf, sizes)
 	if err != nil {
 		log.Fatalf("Error writing the html template: %v", err)
 	}
@@ -124,6 +118,8 @@ func main() {
 				for i, stream := range streams {
 					wg.Add(1)
 					go func(j int, stt *mjpeg.Stream) {
+						defer wg.Done()
+
 						outputImg := image.NewRGBA(image.Rect(0, 0, sizes.width, sizes.totalHeight))
 
 						draw.Draw(outputImg, images[j].srcImg.Bounds(), images[j].srcImg, image.ZP, draw.Src)
@@ -144,7 +140,6 @@ func main() {
 							Quality: 90,
 						})
 						stt.Update(buf.Bytes())
-						wg.Done()
 					}(i, stream)
 				}
 				wg.Wait()
@@ -260,8 +255,12 @@ type Data struct {
 	Areas         []Areas
 }
 
-func WriteHtml(box *packr.Box, w io.Writer, sizes ImgSizes) error {
-	t, err := template.New("index").Parse(box.String(htmlTemplate))
+func WriteHtml(filename string, w io.Writer, sizes ImgSizes) error {
+	templ, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return err
+	}
+	t, err := template.New("index").Parse(string(templ))
 	if err != nil {
 		return err
 	}

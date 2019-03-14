@@ -1,10 +1,13 @@
 module github.com/panzerdev/mjpeg-stitcher
 
+go 1.12
+
 require (
-	github.com/gobuffalo/packr v1.13.5
 	github.com/mattn/go-mjpeg v0.0.0-20180621123927-a9cedbfd1cd8
-	github.com/sirupsen/logrus v1.0.6
-	github.com/spf13/pflag v1.0.2
-	github.com/stretchr/testify v1.2.2
-	golang.org/x/image v0.0.0-20180708004352-c73c2afc3b81
+	github.com/sirupsen/logrus v1.3.0
+	github.com/spf13/pflag v1.0.3
+	github.com/stretchr/testify v1.3.0
+	golang.org/x/crypto v0.0.0-20190103213133-ff983b9c42bc // indirect
+	golang.org/x/image v0.0.0-20190227222117-0694c2d4d067
+	golang.org/x/sys v0.0.0-20190116161447-11f53e031339 // indirect
 )
