@@ -26,11 +26,24 @@ func TestGetSnapshotUrl(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	stream := mjpeg.NewStreamWithInterval(time.Millisecond * 100)
+	stream := mjpeg.NewStream()
 
+	server := httptest.NewServer(stream)
+	defer server.Close()
+
+	client := &SnapshotClient{
+		StorageClient: fakeMinio{},
+		targetCamUrl:  server.URL,
+		domain:        "test.zone",
+		bucket:        "test",
+		cacheChan:     make(chan image.Image),
+	}
+
+	go client.imagePreCache(ctx)
+	//go func() {client.cacheChan <- image.NewGray(image.Rect(0, 0, 100, 100))}()
 	go func() {
 		for {
-			uniformImage := image.NewGray(image.Rect(0, 0, 100, 100))
+			uniformImage := image.NewGray(image.Rect(0, 0, 1000, 1000))
 			buf := bytes.Buffer{}
 			err := jpeg.Encode(&buf, uniformImage, &jpeg.Options{Quality: 100})
 			assert.NoError(t, err)
@@ -39,23 +52,13 @@ func TestGetSnapshotUrl(t *testing.T) {
 
 			select {
 			case <-ctx.Done():
-				stream.Close()
+				err := stream.Close()
+				assert.NoError(t, err)
 				return
 			case <-time.After(time.Millisecond * 100):
-			default:
 			}
 		}
 	}()
-
-	server := httptest.NewServer(stream)
-	defer server.Close()
-
-	client := SnapshotClient{
-		StorageClient: fakeMinio{},
-		targetCamUrl:  server.URL,
-		domain:        "test.zone",
-		bucket:        "test",
-	}
 
 	url, err := client.GetSnapshotUrl()
 	assert.NoError(t, err)

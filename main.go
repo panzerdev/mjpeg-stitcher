@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"html/template"
 	"image"
@@ -18,6 +19,8 @@ import (
 	flag "github.com/spf13/pflag"
 	"golang.org/x/image/colornames"
 	"golang.org/x/image/draw"
+
+	//_ "net/http/pprof"
 )
 
 var (
@@ -154,7 +157,10 @@ func main() {
 							log.Println(err)
 							return
 						}
-						stt.Update(buf.Bytes())
+						err = stt.Update(buf.Bytes())
+						if err != nil {
+							log.Println(err)
+						}
 					}(i, stream)
 				}
 				wg.Wait()
@@ -225,7 +231,7 @@ func Subscribe(url string, processedImgChan chan *ProcessedImages, nr int, sizes
 			log.Infoln(url, "Connecting")
 			imageChan <- image.NewRGBA(image.Rect(0, 0, sizes.width, sizes.totalHeight))
 
-			d, err := mjpeg.NewDecoderFromURL(url)
+			images, err := SubscribeToMjpgStream(context.Background(), url)
 			if err != nil {
 				if nrOfRetries < 30 {
 					nrOfRetries++
@@ -238,23 +244,10 @@ func Subscribe(url string, processedImgChan chan *ProcessedImages, nr int, sizes
 			nrOfRetries = 0
 			log.Infoln(url, "Connected")
 
-			receivingChan := make(chan image.Image, 1)
-			go func() {
-				for {
-					img, err := d.Decode()
-					if err != nil {
-						log.Error(url, "Error Decoding")
-						close(receivingChan)
-						return
-					}
-					receivingChan <- img
-				}
-			}()
-
 		imgLoop:
 			for {
 				select {
-				case img, ok := <-receivingChan:
+				case img, ok := <-images:
 					if !ok {
 						log.Error(url, "Channel was closed")
 						break imgLoop

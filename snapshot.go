@@ -2,15 +2,18 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"image"
 	"image/jpeg"
 	"io"
 	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 
-	"github.com/mattn/go-mjpeg"
 	"github.com/minio/minio-go"
 	"github.com/satori/go.uuid"
 	log "github.com/sirupsen/logrus"
@@ -32,6 +35,7 @@ type SnapshotClient struct {
 	StorageClient
 	bucket, domain string
 	targetCamUrl   string
+	cacheChan      chan image.Image
 }
 
 func NewMinioClient(opt ClientOptions) (*SnapshotClient, error) {
@@ -40,17 +44,50 @@ func NewMinioClient(opt ClientOptions) (*SnapshotClient, error) {
 		return nil, err
 	}
 
-	return &SnapshotClient{
+	sc := &SnapshotClient{
 		StorageClient: m,
 		bucket:        opt.Bucket,
 		domain:        opt.Domain,
 		targetCamUrl:  opt.CamUrl,
-	}, nil
+		cacheChan:     make(chan image.Image),
+	}
+	go sc.imagePreCache(context.Background())
+	return sc, nil
+}
+
+func (sc *SnapshotClient) imagePreCache(ctx context.Context) {
+	defer log.Infoln("imagePreCache exited")
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		stream, err := SubscribeToMjpgStream(ctx, sc.targetCamUrl)
+		if err != nil {
+			log.Println("Error Connecting feed", err)
+			continue
+		}
+
+		img := <-stream
+	DECODE:
+		for {
+			select {
+			case i, ok := <-stream:
+				if !ok {
+					break DECODE
+				}
+				img = i
+			case sc.cacheChan <- img:
+			}
+		}
+	}
 }
 
 func (sc *SnapshotClient) GetSnapshotUrl() (string, error) {
 	buf := bytes.Buffer{}
-	err := WriteSnapshotJpg(&buf, sc.targetCamUrl)
+	err := WriteSnapshotJpg(&buf, sc)
 	if err != nil {
 		return "", err
 	}
@@ -66,20 +103,16 @@ func (sc *SnapshotClient) GetSnapshotUrl() (string, error) {
 	return fmt.Sprintf("https://%v.%v/%v/%v", sc.bucket, sc.domain, sc.bucket, path), nil
 }
 
-func WriteSnapshotJpg(w io.Writer, url string) error {
-	d, err := mjpeg.NewDecoderFromURL(url)
-	if err != nil {
-		return err
+func WriteSnapshotJpg(w io.Writer, sc *SnapshotClient) error {
+	select {
+	case img := <-sc.cacheChan:
+		return jpeg.Encode(w, img, &jpeg.Options{
+			Quality: 90,
+		})
+	case <-time.After(time.Second * 10):
+		return errors.New("timeout")
 	}
 
-	img, err := d.Decode()
-	if err != nil {
-		return err
-	}
-
-	return jpeg.Encode(w, img, &jpeg.Options{
-		Quality: 90,
-	})
 }
 
 func (sc *SnapshotClient) UploadSnapshot(r io.Reader, size int64, path string) error {
